@@ -39,7 +39,7 @@ def writeLog(family: str, ip: str, port: int) -> None:
             f.write(log_entry)
             f.write('\n')
     except BaseException as e:
-        print(f"[!] Failed to write log to file: {e}", file=sys.stderr)
+        print(f"[!] Failed to write log to file: {type(e).__name__} - {e}", file=sys.stderr)
 
 
 def banIp_firewalld(ip: str, family: str) -> None:
@@ -47,7 +47,7 @@ def banIp_firewalld(ip: str, family: str) -> None:
     try:
         subprocess.run(["firewall-cmd", "--add-rich-rule", f"rule family=\"{family}\" source address=\"{ip}\" drop"])
     except BaseException as e:
-        print(f"[!] Failed to run command: {e}", file=sys.stderr)
+        print(f"[!] Failed to run command: {type(e).__name__} - {e}", file=sys.stderr)
 
 
 def apply_firewalld() -> None:
@@ -55,12 +55,12 @@ def apply_firewalld() -> None:
     try:
         subprocess.run(["firewall-cmd", "--runtime-to-permanent"])
     except BaseException as e:
-        print(f"[!] Failed to run command: {e}", file=sys.stderr)
+        print(f"[!] Failed to run command: {type(e).__name__} - {e}", file=sys.stderr)
 
 
 class Trap(Process):
     def __init__(self, port: int):
-        super().__init__(name=f"IPTrap on :{port}", daemon=True)
+        super().__init__(name=f"IPTrap on port {port}", daemon=True)
         self.s: socket.socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         self.port: int = port
 
@@ -72,10 +72,10 @@ class Trap(Process):
             self.terminate()
         except BaseException as e:
             if type(e) is not KeyboardInterrupt:
-                print(f"[!] Error stopping trap on port {self.port}: {e}", file=sys.stderr)
+                print(f"[!] Error stopping {self.name}: {type(e).__name__} - {e}", file=sys.stderr)
 
     def run(self) -> None:
-        print(f"Initializing trap on port {self.port}", flush=True)
+        print(f"Starting {self.name}", flush=True)
         self.s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -83,7 +83,7 @@ class Trap(Process):
             self.s.listen(5)
             while True:
                 c, addr = self.s.accept()
-                c.send(bytearray("BUSTED\n", encoding="ASCII"))
+#                c.send(bytearray("BUSTED\n", encoding="ASCII"))
                 c.close()
                 ip = extractIpv4FromIpv6(addr[0]) if isIpv4MappedIpv6(addr[0]) else addr[0]
                 if isLoopback(ip):
@@ -93,7 +93,7 @@ class Trap(Process):
                 banIp_firewalld(ip, family)
         except BaseException as e:
             if type(e) is not KeyboardInterrupt:
-                print(f"[!] Error running trap on port {self.port}: {e}", file=sys.stderr)
+                print(f"[!] Error running {self.name}: {type(e).__name__} - {e}", file=sys.stderr)
 
 
 def main():
@@ -107,7 +107,7 @@ def main():
                 raise ValueError
             ports.append(port)
         except BaseException as e:
-            print(f"[!] Skipping invalid argument \"{a}\": {e}", file=sys.stderr)
+            print(f"[!] Skipping invalid argument \"{a}\": {type(e).__name__} - {e}", file=sys.stderr)
 
     if len(ports) == 0:
         print("[!] No valid ports found, exiting", file=sys.stderr)
@@ -118,7 +118,6 @@ def main():
 
     signal.signal(signal.SIGTERM, shutdownHook)
 
-    print("IPTrap is starting", flush=True)
     for port in ports:
         trap: Trap = Trap(port)
         traps.append(trap)
@@ -128,7 +127,7 @@ def main():
         while True:
             time.sleep(1000)
     except BaseException:
-        print("IPTrap is being stopped", flush=True)
+        print(f"\nStopping", flush=True)
         for trap in traps:
             trap.stop()
         apply_firewalld()

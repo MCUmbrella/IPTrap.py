@@ -10,3 +10,12 @@ venv/
 
 # PyCharm
 .idea/
+
+# Visual Studio Code
+.vscode/
+
+# IPTrap specific
+*.mmdb
+*.log
+*.db
+*.dat
